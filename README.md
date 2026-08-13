@@ -36,9 +36,6 @@ docker compose up -d --build
 
 ## Decisions and why
 
-> _This section grows as each part of the project is built — see the PRs for the reasoning
-> behind each one in context._
-
 ### Backend
 - Go, compiled to a static binary (`CGO_ENABLED=0`) in a multi-stage Dockerfile, final image is
   `gcr.io/distroless/static-debian12:nonroot` — no shell, no package manager, runs as a non-root
@@ -120,7 +117,21 @@ docker compose up -d --build
 
 ## What I'd improve with more time
 
-> _Filled in at the end._
+- **`terraform plan` on every infra PR, `apply` gated behind manual approval.** The challenge only
+  asks for the app to deploy automatically, not infra changes — and I wouldn't auto-apply
+  Terraform blindly even with more time: a bad infra change can take down or misconfigure real
+  resources (a database, a security group), which is a different risk than a bad app deploy. Plan
+  automatically so the diff is visible on every PR; keep `apply` a conscious, human step.
+- **HTTPS with a real domain.** The ALB only serves plain HTTP right now — anyone visiting the URL
+  gets flagged "not secure" by the browser. This wasn't a design choice, just a side effect of not
+  having a domain for a throwaway challenge; with one, it's an ACM certificate + an HTTPS listener
+  on the ALB.
+- **Monitoring and alerts.** There are logs, but nothing that notices when something breaks — if a
+  service started failing at 3am, nobody would know until someone checked by hand. CloudWatch
+  Alarms on real signals (ALB 5xx rate, ECS tasks below `desired_count`, failed health checks)
+  wired to SNS would close that gap, using metrics AWS already collects for free — no new
+  infrastructure needed. A stack like Prometheus/Grafana would be overkill at this size; that
+  makes more sense once there are several services or custom business metrics to track.
 
 ## Use of AI tools
 
