@@ -17,6 +17,7 @@ var seedQuotes = []string{
 	"The best CI/CD pipeline is the one that doesn't wake you up at 3am.",
 	"'Just a tiny change' — famous last words.",
 	"A hardcoded secret is a love letter to attackers.",
+	"The pipeline is green, but is it actually working?",
 }
 
 func Connect(dsn string) (*sql.DB, error) {
