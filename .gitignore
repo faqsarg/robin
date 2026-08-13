@@ -1,0 +1,16 @@
+# env
+.env
+
+# Go
+/backend/robin-backend
+*.test
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+
+# OS
+.DS_Store
