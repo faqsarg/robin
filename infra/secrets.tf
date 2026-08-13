@@ -5,6 +5,10 @@ resource "random_password" "db" {
 
 resource "aws_secretsmanager_secret" "db" {
   name = "${var.project_name}/db-credentials"
+
+  # Throwaway challenge infra: skip the default 30-day recovery window so a
+  # destroy + re-apply doesn't collide with a secret still pending deletion.
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "db" {
