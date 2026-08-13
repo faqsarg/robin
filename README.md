@@ -144,8 +144,8 @@ image, no runtime, and it's what I wanted to demonstrate) and a build-free vanil
 instead of React, and picked AWS/ECS Fargate over GCP/Cloud Run since it's the stack I am more 
 comfortable with.
 
-**Where AI got something wrong:** two real bugs, both in nginx config the assistant wrote, both
-only caught by actually testing on AWS instead of trusting that it worked:
+**Where AI got something wrong:** three real issues, all only caught by actually testing on AWS
+instead of trusting that things worked:
 
 1. **nginx crashed on startup in ECS.** The original config pointed nginx at `backend:8080` to
    reach the API. That hostname only exists inside docker-compose's own network — in AWS it
@@ -158,6 +158,15 @@ only caught by actually testing on AWS instead of trusting that it worked:
    caught this by testing each route by hand (`curl -v` on every one), instead of assuming
    "container is running" meant "the app works." `/version` happened to still work by luck, which
    would have hidden the bug entirely if that were the only route checked.
+3. **A different kind of miss: stale knowledge, not a logic bug.** The GitHub Actions OIDC role
+   kept failing to assume with `AccessDenied`, for no reason visible in the Terraform code - the
+   trust policy looked correct. The cause was a GitHub platform change from 2026-04-23 (after the
+   assistant's training cutoff): repos created after 2026-07-15 get an OIDC `sub` claim in an
+   immutable `repo:OWNER@OWNER-ID/REPO@REPO-ID` format instead of plain names, specifically to
+   stop a recycled username/repo from inheriting an old trust policy. The assistant didn't guess
+   or patch around it - it read the actual denied request from AWS CloudTrail, saw the real `sub`
+   claim AWS received, and cross-checked it against GitHub's API and changelog before touching
+   the trust policy.
 
 ## Cleanup
 
