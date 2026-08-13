@@ -21,3 +21,7 @@ output "ecs_frontend_service_name" {
 output "ecs_backend_service_name" {
   value = aws_ecs_service.backend.name
 }
+
+output "github_actions_role_arn" {
+  value = aws_iam_role.github_actions_deployer.arn
+}

@@ -96,7 +96,26 @@ docker compose up -d --build
   Terraform trying to revert it on the next `apply`.
 
 ### CI/CD
-- TBD
+- **GitHub Actions, OIDC instead of access keys**: the workflow authenticates to AWS via a
+  federated IAM role (`robin-github-actions-deployer`), not a static access key stored as a
+  GitHub Secret. GitHub signs a short-lived token per run; the role's trust policy only accepts
+  one whose `sub` claim is literally `repo:faqsarg/robin:ref:refs/heads/main` — no other repo,
+  fork, or branch can assume it. No AWS credential is stored anywhere in GitHub.
+- **The OIDC provider is read, not created**: it's an AWS account-level singleton (one per URL
+  per account) and one already existed here for another project. Terraform only reads it via a
+  `data` source and owns its own role — the same shared-provider pattern a platform team would
+  use for multiple projects in one AWS account.
+- **The deploy role's permissions are scoped to exactly 5 actions it needs**: push to the two ECR
+  repos, register/describe task definitions (these two ECS actions don't support resource-level
+  scoping - an AWS limitation, not a choice), update the two specific ECS services, and
+  `iam:PassRole` on just the ECS execution role. Nothing else.
+- **Matrix build**: one job definition, run twice in parallel (frontend/backend) via a build
+  matrix, instead of duplicating every step.
+- **Terraform still owns the infra, CI/CD owns the running image**: each push builds the image,
+  tags it with the short git SHA, registers a new task definition revision pointing at it, and
+  calls `update-service --force-new-deployment` — the same manual sequence used to bootstrap the
+  first deploy, now automated. `aws ecs wait services-stable` at the end means the workflow only
+  goes green once the new version is actually running and healthy, not just pushed.
 
 ## What I'd improve with more time
 
