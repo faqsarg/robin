@@ -66,7 +66,33 @@ docker compose up -d --build
   needed between environments.
 
 ### Infrastructure
-- TBD (next step)
+- **Networking, no NAT Gateway**: ECS tasks run in public subnets with their own public IP
+  (needed to pull images from ECR and reach Secrets Manager without a NAT Gateway), but a
+  Security Group only allows inbound traffic from the ALB's SG on the container port — nothing
+  else can reach them directly. RDS sits in private/isolated subnets with no route to the
+  internet at all, reachable only from the ECS tasks' SG on 5432. A NAT Gateway would add a
+  genuine extra layer of defense-in-depth (tasks would be physically unreachable from the
+  internet even if the SG were ever misconfigured), but costs ~$32/month and isn't free-tier
+  eligible — not worth it for infra that lives a couple of days and gets destroyed after review.
+- **2 AZs, not 1**: not a choice — both the ALB and the RDS subnet group require subnets in at
+  least two Availability Zones to be created at all, even with `multi_az = false`.
+- **Secrets**: DB master password is a `random_password`, never written in code. It's stored in
+  Secrets Manager as JSON (host/user/password/dbname), and the ECS task definition injects each
+  field individually via the `secrets` block — the value never appears in plain text in
+  Terraform state diffs shown to a human, task definition JSON, or logs.
+- **IAM**: the ECS task execution role only gets the AWS-managed `AmazonECSTaskExecutionRolePolicy`
+  (ECR pull + CloudWatch Logs) plus one inline statement scoped to `secretsmanager:GetSecretValue`
+  on that single secret's ARN — nothing broader. The Terraform Cloud deployer itself also runs as
+  a dedicated IAM user with a custom policy scoped to the services actually used here, instead of
+  the personal admin account.
+- **ALB with path-based routing**: one load balancer, `/` → frontend target group, `/api/*` and
+  `/version` → backend target group. Gives a single stable URL that survives redeploys (Fargate
+  tasks get a new IP every deployment) instead of sharing two unstable IPs.
+- **CI/CD vs. Terraform ownership of the running image**: `aws_ecs_service` uses
+  `lifecycle { ignore_changes = [task_definition] }` and `wait_for_steady_state = false`. Terraform
+  owns the initial task definition revision (needed for `apply` to succeed before any image has
+  ever been pushed); every push to `main` after that registers a new revision via CI/CD without
+  Terraform trying to revert it on the next `apply`.
 
 ### CI/CD
 - TBD
