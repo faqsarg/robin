@@ -13,7 +13,36 @@ Both services sit behind the same ALB, split by path (see "ALB with path-based r
 
 ## Architecture
 
-> _Diagram added once the AWS infrastructure is in place._
+Solid arrows are runtime request traffic; dashed arrows are pulling an image or reading a secret.
+Security group rules (who can reach what) are covered in "Infrastructure" below.
+
+```mermaid
+flowchart TB
+    Dev([Developer]) -->|git push to main| GHA[GitHub Actions<br/>OIDC, no stored keys]
+    GHA -->|build + push| ECR[(ECR)]
+    GHA -->|deploy| FE
+    GHA -->|deploy| BE
+
+    User([Browser]) -->|HTTP :80| ALB{{ALB<br/>path-based routing}}
+
+    subgraph VPC["VPC · no NAT Gateway"]
+        subgraph Pub["Public subnets"]
+            ALB
+            FE["ECS Fargate<br/>frontend / nginx"]
+            BE["ECS Fargate<br/>backend / Go"]
+        end
+        subgraph Priv["Private subnets · isolated, no internet route"]
+            RDS[("RDS PostgreSQL")]
+        end
+    end
+
+    ALB -->|"/"| FE
+    ALB -->|"/api/*, /version"| BE
+    BE --> RDS
+    BE -.->|read DB creds| SM[("Secrets Manager")]
+    FE -.->|pull image| ECR
+    BE -.->|pull image| ECR
+```
 
 ## Stack
 
