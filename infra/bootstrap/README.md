@@ -1,63 +1,46 @@
 # Bootstrap: the `robin-terraform-deployer` IAM user
 
-`robin-infra`'s Terraform Cloud workspace authenticates to AWS as an IAM user called
-`robin-terraform-deployer`. Its permissions are **not managed by the Terraform in this repo** —
-this file explains why, and documents exactly what it has.
+Terraform Cloud authenticates to AWS as an IAM user called `robin-terraform-deployer`. Its
+policy is **not managed by this Terraform** — it can't be: Terraform needs AWS credentials to
+run at all, so those credentials can't be defined by a Terraform resource that needs them to be
+applied in the first place. This user/policy was created once, by hand, before any `.tf` file
+existed. `deployer-policy.json` in this folder mirrors exactly what's applied in AWS.
 
-## Why this isn't in the main Terraform code
-
-Terraform Cloud needs AWS credentials to run `plan`/`apply` at all. If those credentials were
-themselves defined by a resource in the same Terraform run, applying that run would require
-credentials that don't exist yet — a circular dependency. This is a standard bootstrapping
-problem: the identity that operates Terraform has to be created once, by hand, outside of it.
-
-## What was actually run
+## What was run
 
 ```bash
-# 1. Create the scoped policy (see deployer-policy.json for the current, exact content)
-aws iam create-policy \
-  --policy-name robin-terraform-deployer-policy \
-  --policy-document file://deployer-policy.json \
-  --tags Key=Project,Value=robin-devops-challenge
+aws iam create-policy --policy-name robin-terraform-deployer-policy \
+  --policy-document file://deployer-policy.json
 
-# 2. Create a dedicated IAM user - never reuse a personal admin account for automation
-aws iam create-user --user-name robin-terraform-deployer \
-  --tags Key=Project,Value=robin-devops-challenge Key=Purpose,Value=terraform-cloud-deployer
+aws iam create-user --user-name robin-terraform-deployer
 
-# 3. Attach the policy
-aws iam attach-user-policy \
-  --user-name robin-terraform-deployer \
+aws iam attach-user-policy --user-name robin-terraform-deployer \
   --policy-arn arn:aws:iam::915170001562:policy/robin-terraform-deployer-policy
 
-# 4. Generate access keys and push them straight into the TFC workspace as sensitive
-#    env vars (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) - they were never written to
-#    disk or shown in a terminal, only piped directly into the TFC API.
 aws iam create-access-key --user-name robin-terraform-deployer
 ```
 
-No `AdministratorAccess`, no reused personal credentials - a scoped policy for exactly the
-services this project provisions (EC2/VPC, ECR, ECS, RDS, ELB, CloudWatch Logs, Secrets Manager),
-plus IAM permissions limited to resources named `robin-*`.
+The access key went straight into the Terraform Cloud workspace as a sensitive env var — never
+written to disk or printed to a terminal. No `AdministratorAccess`: the policy only covers the
+services this project actually uses (EC2/VPC, ECR, ECS, RDS, ELB, Logs, Secrets Manager), plus
+IAM permissions scoped to `robin-*` resources.
 
-## Why it grew after the initial setup
+## Why the policy grew
 
-The policy started narrower and was widened three times as Terraform hit real `AccessDenied`
-errors for things the initial scope didn't anticipate - each one found by actually running
-`terraform apply`, not predicted in advance:
+Widened twice, each time after a real `AccessDenied` from `terraform apply`:
 
-1. `iam:GetOpenIDConnectProvider` / `iam:ListOpenIDConnectProviders` - needed once
-   `infra/github_oidc.tf` started reading the account's existing GitHub OIDC provider.
-2. `iam:UpdateAssumeRolePolicy` - needed to update the CI/CD role's trust policy when fixing the
-   GitHub immutable-subject-claim issue (see the main README's "Where AI got something wrong").
+1. `iam:GetOpenIDConnectProvider` / `ListOpenIDConnectProviders` — reading the account's existing
+   GitHub OIDC provider (`infra/github_oidc.tf`).
+2. `iam:UpdateAssumeRolePolicy` — updating the CI/CD role's trust policy (see the main README's
+   "Where AI got something wrong").
 
-`deployer-policy.json` in this folder is kept in sync with whatever is actually applied in AWS -
-if they ever drift, AWS is the source of truth (this file documents it, Terraform doesn't
-enforce it).
+## With more time
 
-## What I'd do differently with more time
-
-Manage this with a **separate Terraform Cloud workspace and state**, applied once using
-the account owner's own AWS credentials, so this policy would be fully version-controlled and
-diffable like everything else - instead of an IAM user/policy applied by hand and only mirrored
-here as documentation. Skipped for this challenge to avoid a second TFC workspace for a
-one-time setup.
+Even automated, this step can't fully escape needing a real human credential to kick it off — a
+Terraform Cloud workspace for it would still need the account owner's own AWS keys stored in TFC,
+just moving the problem rather than solving it. What I'd actually do: manage the IAM user and
+policy (not the access key) as local-state Terraform, applied by hand, rarely, with the account
+owner's own already-authenticated AWS session — versioned and diffable via `plan`, without adding
+a credential to yet another remote system. The access key itself would stay exactly as it is now,
+generated by a plain CLI call and piped straight into TFC — never through Terraform, since a
+Terraform-managed access key resource would leave its secret sitting in state.
