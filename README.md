@@ -85,7 +85,8 @@ docker compose up -d --build
   (ECR pull + CloudWatch Logs) plus one inline statement scoped to `secretsmanager:GetSecretValue`
   on that single secret's ARN — nothing broader. The Terraform Cloud deployer itself also runs as
   a dedicated IAM user with a custom policy scoped to the services actually used here, instead of
-  the personal admin account.
+  the personal admin account — that policy is applied by hand, not by this Terraform, for a
+  chicken-and-egg reason: see [`infra/bootstrap/README.md`](infra/bootstrap/README.md).
 - **ALB with path-based routing**: one load balancer, `/` → frontend target group, `/api/*` and
   `/version` → backend target group. Gives a single stable URL that survives redeploys (Fargate
   tasks get a new IP every deployment) instead of sharing two unstable IPs.
