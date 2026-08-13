@@ -1,0 +1,21 @@
+server {
+    listen 8080;
+
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # In AWS, the ALB routes /api/* and /version directly to the backend
+    # by path. This proxy is only used for local development (docker-compose),
+    # where there is no load balancer and the browser can only reach nginx.
+    location /api/ {
+        proxy_pass http://${BACKEND_HOST}/api/;
+        proxy_set_header Host $host;
+    }
+
+    location = /version {
+        proxy_pass http://${BACKEND_HOST}/version;
+        proxy_set_header Host $host;
+    }
+}
