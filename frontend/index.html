@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robin — DevOps Challenge</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+      text-align: center;
+      padding: 1.5rem;
+      box-sizing: border-box;
+    }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
+    p.subtitle { color: #94a3b8; margin-top: 0; margin-bottom: 2rem; }
+    #quote-box {
+      max-width: 32rem;
+      min-height: 4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #1e293b;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      font-size: 1.1rem;
+    }
+    button {
+      margin-top: 1.5rem;
+      padding: 0.6rem 1.4rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      background: #6366f1;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background: #4f46e5; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    footer {
+      position: fixed;
+      bottom: 1rem;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <h1>Robin — DevOps Junior Challenge</h1>
+  <p class="subtitle">frontend → API → database</p>
+
+  <div id="quote-box">Loading a quote...</div>
+  <button id="btn">Next quote</button>
+
+  <footer id="version">version: ...</footer>
+
+  <script>
+    const quoteBox = document.getElementById('quote-box');
+    const btn = document.getElementById('btn');
+    const versionEl = document.getElementById('version');
+
+    async function loadQuote() {
+      btn.disabled = true;
+      quoteBox.textContent = 'Loading...';
+      try {
+        const res = await fetch('/api/quote');
+        const data = await res.json();
+        quoteBox.textContent = data.quote ?? 'No response from backend.';
+      } catch (err) {
+        quoteBox.textContent = 'Failed to reach backend.';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadVersion() {
+      try {
+        const res = await fetch('/version');
+        const data = await res.json();
+        versionEl.textContent = `version: ${data.version}`;
+      } catch (err) {
+        versionEl.textContent = 'version: unknown';
+      }
+    }
+
+    btn.addEventListener('click', loadQuote);
+    loadQuote();
+    loadVersion();
+  </script>
+</body>
+</html>
