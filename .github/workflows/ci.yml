@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: frontend
+            dir: frontend
+          - service: backend
+            dir: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image (no push)
+        run: docker build -t "${{ matrix.service }}:ci" ${{ matrix.dir }}
+
+  backend-vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - run: go vet ./...
+        working-directory: backend
+
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: fmt
+        run: terraform fmt -check -recursive
+        working-directory: infra
+
+      # -backend=false: only checks syntax/internal consistency, no TFC
+      # credentials or remote state needed for this.
+      - name: init (no backend)
+        run: terraform init -backend=false
+        working-directory: infra
+
+      - name: validate
+        run: terraform validate
+        working-directory: infra
