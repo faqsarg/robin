@@ -18,18 +18,18 @@ Security group rules (who can reach what) are covered in "Infrastructure" below.
 
 ```mermaid
 flowchart TB
-    Dev([Developer]) -->|git push to main| GHA["`GitHub Actions<br>OIDC, no stored keys`"]
+    Dev([Developer]) -->|git push to main| GHA["GitHub Actions (OIDC)"]
     GHA -->|build + push| ECR[(ECR)]
     GHA -->|deploy| FE
     GHA -->|deploy| BE
 
-    User([Browser]) -->|HTTP :80| ALB{{"`ALB<br>path-based routing`"}}
+    User([Browser]) -->|HTTP :80| ALB{{"ALB (path-based routing)"}}
 
     subgraph VPC["VPC · no NAT Gateway"]
         subgraph Pub["Public subnets"]
             ALB
-            FE["`ECS Fargate<br>frontend / nginx`"]
-            BE["`ECS Fargate<br>backend / Go`"]
+            FE["ECS Fargate: frontend (nginx)"]
+            BE["ECS Fargate: backend (Go)"]
         end
         subgraph Priv["Private subnets · isolated, no internet route"]
             RDS[("RDS PostgreSQL")]
