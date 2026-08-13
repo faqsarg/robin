@@ -7,9 +7,9 @@ Terraform and a GitHub Actions CI/CD pipeline.
 
 Both services sit behind the same ALB, split by path (see "ALB with path-based routing" below).
 
-- Frontend: http://robin-alb-1078685660.us-east-1.elb.amazonaws.com/
-- Backend: http://robin-alb-1078685660.us-east-1.elb.amazonaws.com/api/quote,
-  http://robin-alb-1078685660.us-east-1.elb.amazonaws.com/version
+- Frontend: http://robin-alb-38259096.us-east-1.elb.amazonaws.com/
+- Backend: http://robin-alb-38259096.us-east-1.elb.amazonaws.com/api/quote,
+  http://robin-alb-38259096.us-east-1.elb.amazonaws.com/version
 
 ## Architecture
 
