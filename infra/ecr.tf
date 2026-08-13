@@ -1,6 +1,10 @@
 resource "aws_ecr_repository" "frontend" {
   name = "${var.project_name}-frontend"
 
+  # Throwaway challenge infra - destroy shouldn't fail just because images
+  # were pushed to it.
+  force_delete = true
+
   image_scanning_configuration {
     scan_on_push = true
   }
@@ -8,6 +12,8 @@ resource "aws_ecr_repository" "frontend" {
 
 resource "aws_ecr_repository" "backend" {
   name = "${var.project_name}-backend"
+
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true

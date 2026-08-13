@@ -27,12 +27,15 @@ IAM permissions scoped to `robin-*` resources.
 
 ## Why the policy grew
 
-Widened twice, each time after a real `AccessDenied` from `terraform apply`:
+Widened three times, each time after a real `AccessDenied` from `terraform apply` or
+`terraform destroy`:
 
 1. `iam:GetOpenIDConnectProvider` / `ListOpenIDConnectProviders` — reading the account's existing
    GitHub OIDC provider (`infra/github_oidc.tf`).
 2. `iam:UpdateAssumeRolePolicy` — updating the CI/CD role's trust policy (see the main README's
    "Where AI got something wrong").
+3. `iam:ListInstanceProfilesForRole` — Terraform checks this before deleting an IAM role, so a
+   full `terraform destroy` failed without it.
 
 ## With more time
 

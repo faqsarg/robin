@@ -32,7 +32,8 @@
         "iam:ListAttachedRolePolicies",
         "iam:TagRole",
         "iam:UntagRole",
-        "iam:UpdateAssumeRolePolicy"
+        "iam:UpdateAssumeRolePolicy",
+        "iam:ListInstanceProfilesForRole"
       ],
       "Resource": "arn:aws:iam::915170001562:role/robin-*"
     },
