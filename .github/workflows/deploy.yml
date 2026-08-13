@@ -1,0 +1,90 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::915170001562:role/robin-github-actions-deployer
+  ECS_CLUSTER: robin-cluster
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: frontend
+            dir: frontend
+            ecr_repo: robin-frontend
+            ecs_service: robin-frontend
+            container_name: frontend
+
+          - service: backend
+            dir: backend
+            ecr_repo: robin-backend
+            ecs_service: robin-backend
+            container_name: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Build and push image
+        id: build
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          SHA: ${{ github.sha }}
+        run: |
+          IMAGE="$REGISTRY/${{ matrix.ecr_repo }}:${SHA::7}"
+          if [ "${{ matrix.service }}" = "backend" ]; then
+            docker build --build-arg VERSION="${SHA::7}" -t "$IMAGE" ${{ matrix.dir }}
+          else
+            docker build -t "$IMAGE" ${{ matrix.dir }}
+          fi
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Register new task definition revision
+        id: register
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ matrix.ecs_service }} \
+            --query 'taskDefinition' --output json \
+          | jq --arg IMAGE "${{ steps.build.outputs.image }}" \
+              '.containerDefinitions[0].image = $IMAGE
+               | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                     .compatibilities, .registeredAt, .registeredBy)' \
+          > new-task-def.json
+
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "task_def_arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy new revision
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ matrix.ecs_service }} \
+            --task-definition ${{ steps.register.outputs.task_def_arn }} \
+            --force-new-deployment
+
+      - name: Wait for service to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ matrix.ecs_service }}
