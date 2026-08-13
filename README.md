@@ -172,21 +172,44 @@ progresses.
 - Generating first drafts of the Go API, Dockerfiles, nginx config, and `docker-compose.yml`
   from a description of what each piece needed to do.
 - Design discussion before writing infra code: e.g., whether to put an ALB in front of ECS
-  Fargate at all (tradeoff: stable URL across redeploys vs. cost) and how to avoid a NAT Gateway
-  (not free-tier) while still keeping the RDS instance unreachable from the public internet.
+  Fargate at all (tradeoff: stable URL across redeploys vs. cost), and how to give the ECS tasks
+  outbound internet access (for ECR/Secrets Manager) without paying for a NAT Gateway. RDS staying
+  unreachable from the internet is a separate, unrelated guarantee - it's just in isolated private
+  subnets with no route out, regardless of what the tasks' networking looks like.
+- I'd never used Terraform Cloud before, so I had it explain what it actually solves (remote
+  state, locking) and walk me through setting up the organization, workspace, and API token step
+  by step, instead of just handing me commands to run blind.
 
-**A concrete decisive prompt:** 
+**A concrete decisive prompt:** once the app, infra, and CI/CD were all working end to end, I
+wasn't satisfied with just eyeballing a green pipeline and a working URL as proof it was correct
+— so I asked to actually tear the whole thing down and bring it back up from nothing, to prove
+it, not just assume it. That request turned the final verification from a quick look-around into
+a real test, and it paid off immediately: it surfaced three real bugs that "it's live and looks
+fine" never would have caught — an ECR repo that refuses to delete while it still has images in
+it, a Secrets Manager secret that collides with itself on recreation because of the default
+30-day recovery window, and a missing IAM permission needed to delete a role.
 
-**What I did with what it gave me:** 
+**What I did with what it gave me:** treated generated code as a draft to verify, not a finished
+answer — every Dockerfile got built and run locally before touching AWS; every `terraform plan`
+got read before approving an `apply`, and I stopped to ask what specific blocks
+actually did (subnet wiring, the ALB/ECS connection, `iam:PassRole`) instead of accepting them as
+a black box; and when something claimed to work, I checked it against real evidence — `curl`
+against actual endpoints, CloudWatch logs, CloudTrail events, `describe-services` output — rather
+than trusting a green checkmark. I also rewrote several AI-drafted sections of this README myself
+where the wording or the reasoning wasn't quite right, rather than leaving them as generated.
 
-**Decisions made explicitly without relying on AI's first suggestion:** the initial stack
-proposal was Node.js/Express + React on GCP. I overrode both — chose Go for the backend (smaller
-image, no runtime, and it's what I wanted to demonstrate) and a build-free vanilla JS frontend
-instead of React, and picked AWS/ECS Fargate over GCP/Cloud Run since it's the stack I am more 
-comfortable with.
+**Decisions made explicitly without relying on AI's first suggestion:**
+- The initial stack proposal was Node.js/Express + React on GCP. I overrode both — chose Go for
+  the backend (smaller image, no runtime, and it's what I wanted to demonstrate) and a build-free
+  vanilla JS frontend instead of React, and picked AWS/ECS Fargate over GCP/Cloud Run since it's
+  the stack I am more comfortable with.
+- The original `deploy.yml` triggered on every push to `main`, no matter what changed — a
+  README-only edit would still rebuild and redeploy both services. I caught this myself and asked
+  for a `paths` filter so the pipeline only runs when `backend/` or `frontend/` actually change.
 
-**Where AI got something wrong:** three real issues, all only caught by actually testing on AWS
-instead of trusting that things worked:
+**Where AI got something wrong:** four real issues — three only caught by actually testing on AWS
+instead of trusting that things worked, one caught by questioning a suggestion instead of
+accepting it:
 
 1. **nginx crashed on startup in ECS.** The original config pointed nginx at `backend:8080` to
    reach the API. That hostname only exists inside docker-compose's own network — in AWS it
@@ -208,6 +231,13 @@ instead of trusting that things worked:
    or patch around it - it read the actual denied request from AWS CloudTrail, saw the real `sub`
    claim AWS received, and cross-checked it against GitHub's API and changelog before touching
    the trust policy.
+4. **A suggestion that sounded reasonable but didn't hold up.** When discussing how to make the
+   bootstrap IAM user/policy properly version-controlled, the first suggestion was to manage it
+   in its own separate Terraform Cloud workspace. That doesn't actually work: that workspace would
+   still need real AWS credentials to run at all, so it would just relocate the "who holds the
+   master credential" problem instead of solving it. Pushed back on this, and the conclusion was
+   better: local-state Terraform, applied by hand, rarely, with the account owner's own
+   already-authenticated session — see `infra/bootstrap/README.md`.
 
 ## Cleanup
 
