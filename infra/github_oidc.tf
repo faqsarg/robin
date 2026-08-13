@@ -23,11 +23,15 @@ data "aws_iam_policy_document" "github_actions_assume" {
     }
 
     # Only workflow runs on this exact repo's main branch can assume this
-    # role - not other branches, forks, or any other repo.
+    # role - not other branches, forks, or any other repo. Uses the
+    # immutable owner/repo ID format (see variables.tf) rather than plain
+    # names.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
+      values = [
+        "repo:${split("/", var.github_repo)[0]}@${var.github_owner_id}/${split("/", var.github_repo)[1]}@${var.github_repo_id}:ref:refs/heads/main"
+      ]
     }
   }
 }
