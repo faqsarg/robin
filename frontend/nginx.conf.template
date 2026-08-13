@@ -1,21 +1,29 @@
 server {
     listen 8080;
+    resolver ${DNS_RESOLVER} valid=10s;
 
     location / {
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;
     }
 
-    # In AWS, the ALB routes /api/* and /version directly to the backend
-    # by path. This proxy is only used for local development (docker-compose),
-    # where there is no load balancer and the browser can only reach nginx.
+    # In AWS, the ALB routes /api/* and /version directly to the backend by
+    # path, so these locations never actually get hit there - this proxy only
+    # matters for local development (docker-compose), where there is no load
+    # balancer. Using a variable makes nginx resolve $backend_host at request
+    # time (via the resolver above) instead of at startup, so nginx still
+    # starts even where "backend" isn't a resolvable hostname. $request_uri
+    # (the original path, untouched) is forwarded as-is since nginx skips its
+    # usual prefix-rewriting when the proxied host is a variable.
     location /api/ {
-        proxy_pass http://${BACKEND_HOST}/api/;
+        set $backend_host ${BACKEND_HOST};
+        proxy_pass http://$backend_host$request_uri;
         proxy_set_header Host $host;
     }
 
     location = /version {
-        proxy_pass http://${BACKEND_HOST}/version;
+        set $backend_host ${BACKEND_HOST};
+        proxy_pass http://$backend_host$request_uri;
         proxy_set_header Host $host;
     }
 }

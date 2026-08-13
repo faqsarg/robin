@@ -5,10 +5,11 @@ Terraform and a GitHub Actions CI/CD pipeline.
 
 ## Live URLs
 
-> _Filled in once deployed to AWS._
+Both services sit behind the same ALB, split by path (see "ALB with path-based routing" below).
 
-- Frontend: TBD
-- Backend: TBD
+- Frontend: http://robin-alb-1078685660.us-east-1.elb.amazonaws.com/
+- Backend: http://robin-alb-1078685660.us-east-1.elb.amazonaws.com/api/quote,
+  http://robin-alb-1078685660.us-east-1.elb.amazonaws.com/version
 
 ## Architecture
 
@@ -124,8 +125,20 @@ image, no runtime, and it's what I wanted to demonstrate) and a build-free vanil
 instead of React, and picked AWS/ECS Fargate over GCP/Cloud Run since it's the stack I am more 
 comfortable with.
 
-**Where AI got something wrong or didn't help:** _to be filled in with a real example as the
-Terraform/CI-CD work progresses — not fabricating one here._
+**Where AI got something wrong:** two real bugs, both in nginx config the assistant wrote, both
+only caught by actually testing on AWS instead of trusting that it worked:
+
+1. **nginx crashed on startup in ECS.** The original config pointed nginx at `backend:8080` to
+   reach the API. That hostname only exists inside docker-compose's own network — in AWS it
+   doesn't exist anywhere. nginx tries to look up that address the moment it starts, so the
+   container just never came up. Found it by checking the CloudWatch logs after noticing the ECS
+   service had zero running tasks.
+2. **The fix introduced a second, sneakier bug.** The fix was to make nginx look up that address
+   later, per request, instead of once at startup. That solved the crash — but as a side effect,
+   nginx started silently forwarding `/api/quote` to the backend as just `/api/`, a 404. Only
+   caught this by testing each route by hand (`curl -v` on every one), instead of assuming
+   "container is running" meant "the app works." `/version` happened to still work by luck, which
+   would have hidden the bug entirely if that were the only route checked.
 
 ## Cleanup
 

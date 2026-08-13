@@ -27,6 +27,11 @@ resource "aws_ecs_task_definition" "frontend" {
     name         = "frontend"
     image        = "${aws_ecr_repository.frontend.repository_url}:initial"
     portMappings = [{ containerPort = 8080, protocol = "tcp" }]
+    environment = [
+      # VPC's Amazon-provided DNS resolver, needed so nginx can resolve
+      # $backend_host at request time (see frontend/nginx.conf.template).
+      { name = "DNS_RESOLVER", value = "169.254.169.253" }
+    ]
     logConfiguration = {
       logDriver = "awslogs"
       options = {
