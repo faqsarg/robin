@@ -241,5 +241,6 @@ accepting it:
 
 ## Cleanup
 
-Once evaluated, all AWS infrastructure was destroyed with `terraform destroy`. If a live URL was
-shared as evidence, it was taken down after the review.
+As requested in the challenge, this infrastructure won't stay up indefinitely. If the URLs at the
+top of this README are no longer responding, it's because everything was torn down with
+`terraform destroy` after the review — not because something broke.
